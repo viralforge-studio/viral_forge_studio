@@ -11,6 +11,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProjectListEditor } from "@/components/project/ProjectListEditor";
 import {
+  audienceOptions,
+  languageOptions,
+  manualOptionValue,
+  positioningOptions,
+  targetCountryOptions,
+} from "@/lib/project/audiencePresets";
+import {
+  imageToolOptions,
+  videoFormatOptions,
+  videoToolOptions,
+} from "@/lib/project/generationTools";
+import { nicheOptions } from "@/lib/project/niches";
+import {
   blankProjectValues,
   defaultProjectValues,
   type NewProjectInput,
@@ -42,6 +55,10 @@ export function ProjectForm() {
     Array<{ path: string; message: string }>
   >([]);
   const [form, setForm] = useState<FormState>(defaultProjectValues);
+  const [positioningMode, setPositioningMode] = useState(defaultProjectValues.positioning);
+  const [audienceMode, setAudienceMode] = useState(defaultProjectValues.audience);
+  const [targetCountriesMode, setTargetCountriesMode] = useState("us_uk_ca_au");
+  const [languageMode, setLanguageMode] = useState(defaultProjectValues.language);
 
   const isFutureFiles = form.project_template === "future_files";
 
@@ -57,6 +74,14 @@ export function ProjectForm() {
 
   function applyTemplate(template: NewProjectInput["project_template"]) {
     setForm(template === "future_files" ? defaultProjectValues : blankProjectValues);
+    setPositioningMode(
+      template === "future_files" ? defaultProjectValues.positioning : manualOptionValue,
+    );
+    setAudienceMode(
+      template === "future_files" ? defaultProjectValues.audience : manualOptionValue,
+    );
+    setTargetCountriesMode(template === "future_files" ? "us_uk_ca_au" : manualOptionValue);
+    setLanguageMode(template === "future_files" ? defaultProjectValues.language : manualOptionValue);
     setError(null);
     setValidationErrors([]);
   }
@@ -138,11 +163,22 @@ export function ProjectForm() {
                 />
               </Field>
               <Field label="Niche">
-                <Input
+                <select
                   value={form.niche}
                   onChange={(event) => updateField("niche", event.target.value)}
-                  placeholder="Future Tech Mini Stories"
-                />
+                  className={selectClassName(form.niche)}
+                >
+                  <option value="">Select a niche</option>
+                  {nicheOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {nicheOptions.find((option) => option.value === form.niche)?.description ??
+                    "Choose the content lane that should guide ideas, prompts, visuals, and video generation."}
+                </p>
               </Field>
               <Field label="Platform">
                 <Input
@@ -183,25 +219,63 @@ export function ProjectForm() {
                 />
               </Field>
               <Field label="Primary AI Video Tool">
-                <Input
+                <select
                   value={form.primary_ai_video_tool}
                   onChange={(event) => updateField("primary_ai_video_tool", event.target.value)}
-                  placeholder="Kling"
-                />
+                  className={selectClassName(form.primary_ai_video_tool)}
+                >
+                  <option value="">Select video tool</option>
+                  {videoToolOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {videoToolOptions.find(
+                    (option) => option.value === form.primary_ai_video_tool,
+                  )?.description ??
+                    "Choose the video tool that final Kling/video prompts should be optimized around."}
+                </p>
               </Field>
               <Field label="Image Generation Tool">
-                <Input
+                <select
                   value={form.image_generation_tool}
                   onChange={(event) => updateField("image_generation_tool", event.target.value)}
-                  placeholder="Manual / user-selected"
-                />
+                  className={selectClassName(form.image_generation_tool)}
+                >
+                  <option value="">Select image tool</option>
+                  {imageToolOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {imageToolOptions.find(
+                    (option) => option.value === form.image_generation_tool,
+                  )?.description ??
+                    "Choose Manual / user-selected when image generation will happen outside a fixed provider."}
+                </p>
               </Field>
               <Field label="Video Format">
-                <Input
+                <select
                   value={form.video_format}
                   onChange={(event) => updateField("video_format", event.target.value)}
-                  placeholder="Vertical 9:16 short-form video"
-                />
+                  className={selectClassName(form.video_format)}
+                >
+                  <option value="">Select video format</option>
+                  {videoFormatOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {videoFormatOptions.find((option) => option.value === form.video_format)
+                    ?.description ??
+                    "Choose the delivery format that should guide framing, aspect ratio, and composition."}
+                </p>
               </Field>
             </div>
           </Section>
@@ -212,32 +286,133 @@ export function ProjectForm() {
           >
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Positioning">
-                <Textarea
-                  value={form.positioning}
-                  onChange={(event) => updateField("positioning", event.target.value)}
-                  className="min-h-[120px]"
-                />
+                <select
+                  value={positioningMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setPositioningMode(value);
+                    if (value !== manualOptionValue) {
+                      updateField("positioning", value);
+                    }
+                  }}
+                  className={selectClassName(positioningMode)}
+                >
+                  {positioningOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {positioningOptions.find((option) => option.value === positioningMode)
+                    ?.description ?? "Choose how this project should be positioned."}
+                </p>
+                {positioningMode === manualOptionValue ? (
+                  <Textarea
+                    value={form.positioning}
+                    onChange={(event) => updateField("positioning", event.target.value)}
+                    className="min-h-[120px]"
+                    placeholder="Write custom positioning for this project"
+                  />
+                ) : null}
               </Field>
               <Field label="Audience">
-                <Textarea
-                  value={form.audience}
-                  onChange={(event) => updateField("audience", event.target.value)}
-                  className="min-h-[120px]"
-                />
+                <select
+                  value={audienceMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setAudienceMode(value);
+                    if (value !== manualOptionValue) {
+                      updateField("audience", value);
+                    }
+                  }}
+                  className={selectClassName(audienceMode)}
+                >
+                  {audienceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {audienceOptions.find((option) => option.value === audienceMode)
+                    ?.description ?? "Choose the viewer profile this project should target."}
+                </p>
+                {audienceMode === manualOptionValue ? (
+                  <Textarea
+                    value={form.audience}
+                    onChange={(event) => updateField("audience", event.target.value)}
+                    className="min-h-[120px]"
+                    placeholder="Write a custom audience profile"
+                  />
+                ) : null}
               </Field>
-              <ProjectListEditor
-                label="Target Countries"
-                helper="Add one country per line or use the quick-add chips above."
-                items={form.target_countries}
-                onChange={(items) => updateField("target_countries", items)}
-                placeholder="United States"
-              />
+              <Field label="Target Countries">
+                <select
+                  value={targetCountriesMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const option = targetCountryOptions.find((item) => item.value === value);
+                    setTargetCountriesMode(value);
+                    if (option && value !== manualOptionValue) {
+                      updateField("target_countries", [...option.countries]);
+                    }
+                  }}
+                  className={selectClassName(targetCountriesMode)}
+                >
+                  {targetCountryOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {targetCountryOptions.find((option) => option.value === targetCountriesMode)
+                    ?.description ?? "Choose the target markets for this project."}
+                </p>
+                {targetCountriesMode === manualOptionValue ? (
+                  <ProjectListEditor
+                    label="Custom Countries"
+                    helper="Add one country per line."
+                    items={form.target_countries}
+                    onChange={(items) => updateField("target_countries", items)}
+                    placeholder="United States"
+                  />
+                ) : (
+                  <p className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm leading-7 text-slate-300">
+                    {form.target_countries.join(", ")}
+                  </p>
+                )}
+              </Field>
               <Field label="Language">
-                <Input
-                  value={form.language}
-                  onChange={(event) => updateField("language", event.target.value)}
-                  placeholder="English"
-                />
+                <select
+                  value={languageMode}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setLanguageMode(value);
+                    if (value !== manualOptionValue) {
+                      updateField("language", value);
+                    }
+                  }}
+                  className={selectClassName(languageMode)}
+                >
+                  {languageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-6 text-slate-500">
+                  {languageOptions.find((option) => option.value === languageMode)
+                    ?.description ?? "Choose the primary language for generated prompts."}
+                </p>
+                {languageMode === manualOptionValue ? (
+                  <Input
+                    value={form.language}
+                    onChange={(event) => updateField("language", event.target.value)}
+                    placeholder="English + Spanish bilingual"
+                  />
+                ) : null}
               </Field>
             </div>
           </Section>
@@ -349,6 +524,13 @@ export function ProjectForm() {
         </Button>
       </div>
     </form>
+  );
+}
+
+function selectClassName(value: string) {
+  return cn(
+    "flex h-12 w-full rounded-[18px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.045))] px-4 py-2 text-sm text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_14px_34px_rgba(2,6,23,0.22)] outline-none backdrop-blur transition focus-visible:border-cyan-200/60 focus-visible:bg-white/10 focus-visible:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_0_0_4px_rgba(103,232,249,0.10),0_16px_38px_rgba(2,6,23,0.28)]",
+    value ? "" : "text-slate-500",
   );
 }
 

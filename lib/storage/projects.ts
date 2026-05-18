@@ -24,6 +24,12 @@ import { type SceneBoardJson } from "@/lib/schemas/scene-board";
 import { type ScriptGeneration } from "@/lib/schemas/script";
 import { buildSubjectDesignPrompt } from "@/lib/prompts/buildSubjectDesignPrompt";
 import { type SubjectDesign } from "@/lib/schemas/subject-design";
+import { type SaveTestSceneReviewInput } from "@/lib/schemas/test-scene-review";
+import {
+  isDatabaseConfigured,
+  readProjectsFromDatabase,
+  writeProjectsToDatabase,
+} from "@/lib/db/projectsRepository";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
@@ -43,6 +49,9 @@ function clearScenePlanningStages(project: Project) {
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
   };
 }
 
@@ -57,6 +66,9 @@ function clearKeyframeAndKlingStages(project: Project) {
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
   };
 }
 
@@ -67,6 +79,9 @@ function clearKlingStage(project: Project) {
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
   };
 }
 
@@ -81,6 +96,10 @@ async function ensureStorage() {
 }
 
 async function readProjects() {
+  if (isDatabaseConfigured()) {
+    return readProjectsFromDatabase();
+  }
+
   await ensureStorage();
   const content = await readFile(PROJECTS_FILE, "utf8");
   const parsed = JSON.parse(content) as unknown;
@@ -89,6 +108,11 @@ async function readProjects() {
 }
 
 async function writeProjects(projects: Project[]) {
+  if (isDatabaseConfigured()) {
+    await writeProjectsToDatabase(projects);
+    return;
+  }
+
   await ensureStorage();
   await writeFile(PROJECTS_FILE, `${JSON.stringify(projects, null, 2)}\n`, "utf8");
 }
@@ -156,6 +180,9 @@ export async function createProject(input: NewProjectInput) {
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
     created_at: timestamp,
     updated_at: timestamp,
   };
@@ -263,6 +290,9 @@ async function persistIdeaGeneration(
       : null,
     kling_prompts: hasSelectedIdea ? projects[index].kling_prompts : null,
     kling_prompts_source: hasSelectedIdea ? projects[index].kling_prompts_source : null,
+    test_scene_review: hasSelectedIdea ? projects[index].test_scene_review : null,
+    export_ready_at: hasSelectedIdea ? projects[index].export_ready_at : null,
+    export_notes: hasSelectedIdea ? projects[index].export_notes : null,
     status: hasSelectedIdea ? "idea_selected" : "ideas_generated",
     updated_at: new Date().toISOString(),
   };
@@ -344,6 +374,9 @@ export async function selectIdea(projectId: string, ideaId: string) {
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
     status: "idea_selected",
     updated_at: timestamp,
   };
@@ -498,6 +531,9 @@ export async function saveScriptGeneration(
     kling_prompts_prompt_updated_at: null,
     kling_prompts: null,
     kling_prompts_source: null,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
     status: "script_generated",
     updated_at: timestamp,
   };
@@ -1363,7 +1399,83 @@ export async function saveKlingPrompts(
     ...project,
     kling_prompts: klingPrompts,
     kling_prompts_source: source,
+    test_scene_review: null,
+    export_ready_at: null,
+    export_notes: null,
     status: "kling_prompts_ready",
+    updated_at: timestamp,
+  };
+
+  projects[index] = ProjectSchema.parse(nextProject);
+  await writeProjects(projects);
+  return projects[index];
+}
+
+export async function saveTestSceneReview(
+  projectId: string,
+  review: SaveTestSceneReviewInput,
+) {
+  const projects = await readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+
+  if (index === -1) {
+    return null;
+  }
+
+  const project = projects[index];
+  if (!project.kling_prompts) {
+    throw new Error("Create Kling prompts first before reviewing a test scene.");
+  }
+
+  const sceneExists = project.kling_prompts.prompts.some(
+    (prompt) => prompt.scene_number === review.scene_number,
+  );
+
+  if (!sceneExists) {
+    throw new Error("Selected test scene does not exist in this project's Kling prompts.");
+  }
+
+  const timestamp = new Date().toISOString();
+  const nextProject: Project = {
+    ...project,
+    test_scene_review: {
+      ...review,
+      reviewed_at: timestamp,
+    },
+    export_ready_at: null,
+    export_notes: null,
+    status: "test_scene_review",
+    updated_at: timestamp,
+  };
+
+  projects[index] = ProjectSchema.parse(nextProject);
+  await writeProjects(projects);
+  return projects[index];
+}
+
+export async function finalizeProjectExport(projectId: string, exportNotes: string) {
+  const projects = await readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+
+  if (index === -1) {
+    return null;
+  }
+
+  const project = projects[index];
+  if (!project.kling_prompts || !project.test_scene_review) {
+    throw new Error("Complete Kling prompts and Test Scene Review before final export.");
+  }
+
+  if (project.test_scene_review.decision !== "approved_for_full_production") {
+    throw new Error("Approve the test scene before marking the project ready for export.");
+  }
+
+  const timestamp = new Date().toISOString();
+  const nextProject: Project = {
+    ...project,
+    export_ready_at: timestamp,
+    export_notes: exportNotes,
+    status: "ready_for_export",
     updated_at: timestamp,
   };
 

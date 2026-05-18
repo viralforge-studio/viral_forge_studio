@@ -5,6 +5,7 @@ import { type ScriptGeneration } from "@/lib/schemas/script";
 import { type SceneBoardJson } from "@/lib/schemas/scene-board";
 import { type SubjectDesign } from "@/lib/schemas/subject-design";
 import { sanitizePromptContext } from "@/lib/utils/sanitizePromptContext";
+import { imagePromptQualityEngine } from "@/lib/prompts/promptQualityEngine";
 
 export function buildKeyframePromptsPrompt(
   project: Project,
@@ -96,6 +97,17 @@ Create one keyframe package per scene with:
 - continuity notes
 - human review questions
 
+${imagePromptQualityEngine}
+
+KEYFRAME OPTIMIZATION RULES
+
+- Opening and ending keyframes must be usable as still-image prompts.
+- Opening keyframe should establish the exact first frame for video generation.
+- Ending keyframe should describe the intended final frame when useful for motion control.
+- Each keyframe should preserve subject identity, environment continuity, prop placement, lighting direction, lens feel, and aspect ratio.
+- Avoid prompts that require multiple story beats inside one still image.
+- Negative prompts must block identity drift, extra limbs/fingers, unreadable text artifacts, warped objects, logos, low-quality CGI, and inconsistent lighting.
+
 OUTPUT RULES
 
 - Return valid JSON only.
@@ -105,6 +117,7 @@ OUTPUT RULES
 - source_script_title must match ${scriptGeneration.title}.
 - every scene must have opening_keyframe_prompt and negative_prompt.
 - Use reference image prompts when available, but remain valid if they are missing.
+- every opening_keyframe_prompt must be self-contained and directly usable in an image generator.
 
 JSON SCHEMA
 ${JSON.stringify(schemaExample, null, 2)}

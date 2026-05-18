@@ -31,10 +31,10 @@ export const workflowTabs = [
   {
     key: "test-scene-review",
     label: "Test Scene Review",
-    enabled: false,
+    enabled: true,
     group: "Production",
   },
-  { key: "export", label: "Export", enabled: false, group: "Export" },
+  { key: "export", label: "Export", enabled: true, group: "Export" },
 ] as const;
 
 export type WorkflowTabKey = (typeof workflowTabs)[number]["key"];
@@ -114,6 +114,10 @@ export function isWorkflowTabAvailable(project: Project, tabKey: string) {
       return Boolean(project.scene_board);
     case "kling-prompts":
       return Boolean(project.keyframe_prompts);
+    case "test-scene-review":
+      return Boolean(project.kling_prompts);
+    case "export":
+      return Boolean(project.test_scene_review);
     default:
       return false;
   }
@@ -145,6 +149,10 @@ export function isWorkflowTabComplete(project: Project, tabKey: WorkflowTabKey) 
       return Boolean(project.keyframe_prompts);
     case "kling-prompts":
       return Boolean(project.kling_prompts);
+    case "test-scene-review":
+      return Boolean(project.test_scene_review);
+    case "export":
+      return Boolean(project.export_ready_at);
     default:
       return false;
   }
@@ -256,10 +264,26 @@ export function getProjectNextStep(project: Project): {
     };
   }
 
+  if (!project.test_scene_review) {
+    return {
+      label: "Review test scene",
+      tab: "test-scene-review",
+      description: "Score the recommended test scene and decide whether the project is ready for full production.",
+    };
+  }
+
+  if (!project.export_ready_at) {
+    return {
+      label: "Finalize export",
+      tab: "export",
+      description: "Package the brief, prompts, review notes, and production checklist into a handoff bundle.",
+    };
+  }
+
   return {
-    label: "Review test scene",
-    tab: "test-scene-review",
-    description: "Use the recommended test scene to validate prompt quality before scaling production.",
+    label: "Export ready",
+    tab: "export",
+    description: "This project is ready to hand off for production or archive as a completed prompt package.",
   };
 }
 

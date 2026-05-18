@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { IdeaLab } from "@/components/ideas/IdeaLab";
 import { SelectedIdeaPanel } from "@/components/ideas/SelectedIdeaPanel";
 import { DesignImagePromptsPanel } from "@/components/design-image-prompts/DesignImagePromptsPanel";
+import { ExportPanel } from "@/components/export/ExportPanel";
 import { KeyframePromptsPanel } from "@/components/keyframe-prompts/KeyframePromptsPanel";
 import { KlingPromptsPanel } from "@/components/kling-prompts/KlingPromptsPanel";
 import { DeleteProjectButton } from "@/components/project/DeleteProjectButton";
@@ -13,6 +14,7 @@ import { ScriptPanel } from "@/components/script/ScriptPanel";
 import { ScriptPromptEditor } from "@/components/script/ScriptPromptEditor";
 import { SubjectDesignPanel } from "@/components/subject-design/SubjectDesignPanel";
 import { SubjectDesignPromptEditor } from "@/components/subject-design/SubjectDesignPromptEditor";
+import { TestSceneReviewPanel } from "@/components/test-scene-review/TestSceneReviewPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +58,8 @@ const functionalTabs = new Set([
   "scene-board",
   "keyframe-prompts",
   "kling-prompts",
+  "test-scene-review",
+  "export",
 ]);
 
 export default async function ProjectWorkspacePage({
@@ -281,6 +285,10 @@ export default async function ProjectWorkspacePage({
               defaultPrompt={defaultKlingPromptsPrompt}
             />
           ) : null}
+          {activeTab === "test-scene-review" ? (
+            <TestSceneReviewPanel project={project} />
+          ) : null}
+          {activeTab === "export" ? <ExportPanel project={project} /> : null}
           {!functionalTabs.has(activeTab) ? <ComingSoonPanel label={activeTab} /> : null}
         </div>
       </section>

@@ -7,6 +7,7 @@ import { KeyframePromptsSchema } from "@/lib/schemas/keyframe-prompts";
 import { KlingPromptsSchema } from "@/lib/schemas/kling-prompts";
 import { SceneBoardSchema } from "@/lib/schemas/scene-board";
 import { SubjectDesignSchema } from "@/lib/schemas/subject-design";
+import { TestSceneReviewSchema } from "@/lib/schemas/test-scene-review";
 
 export const ProjectStatusSchema = z.enum([
   "brief_created",
@@ -104,6 +105,9 @@ export const ProjectSchema = NewProjectInputSchema.extend({
     .enum(["generated", "uploaded", "pasted"])
     .nullable()
     .default(null),
+  test_scene_review: TestSceneReviewSchema.nullable().default(null),
+  export_ready_at: z.string().datetime().nullable().default(null),
+  export_notes: z.string().nullable().default(null),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });

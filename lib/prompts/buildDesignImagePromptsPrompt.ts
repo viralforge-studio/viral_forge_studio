@@ -3,6 +3,7 @@ import { type Project } from "@/lib/schemas/project";
 import { type ScriptGeneration } from "@/lib/schemas/script";
 import { type SubjectDesign } from "@/lib/schemas/subject-design";
 import { sanitizePromptContext } from "@/lib/utils/sanitizePromptContext";
+import { imagePromptQualityEngine } from "@/lib/prompts/promptQualityEngine";
 
 export function buildDesignImagePromptsPrompt(
   project: Project,
@@ -167,6 +168,8 @@ For this project, include at minimum:
 - Apartment door / hallway light reference
 - Global cinematic style reference
 
+${imagePromptQualityEngine}
+
 PROMPT RULES
 
 - These are still image prompts only.
@@ -176,6 +179,9 @@ PROMPT RULES
 - No readable text requirements.
 - No logos, brands, celebrities, or copyrighted character references.
 - Prompts should be useful for manual image generation before keyframes or Kling prompts.
+- Prompts must include enough visual detail to generate a strong first image without external explanation.
+- Prompts must avoid vague style-only language; describe concrete subject design, materials, lighting, lens/composition, and environment.
+- Negative prompts must be specific to this project and include global quality blockers.
 - Every prompt must include title, type, purpose, prompt, negative_prompt, recommended_model_use, composition_notes, consistency_notes, and human_review_questions.
 - linked_ids should reference ids from subject_design whenever possible.
 
@@ -206,5 +212,6 @@ Before returning JSON, silently verify:
 - No celebrity likeness.
 - No readable text requirement.
 - Each image prompt is independently copyable and useful in an image generator.
+- Each prompt has a clear focal subject, stable composition, controlled lighting, exact consistency anchors, and specific negative prompt.
 - The output contains JSON only.`;
 }

@@ -6,6 +6,7 @@ import { type ScriptGeneration } from "@/lib/schemas/script";
 import { type SceneBoardJson } from "@/lib/schemas/scene-board";
 import { type SubjectDesign } from "@/lib/schemas/subject-design";
 import { sanitizePromptContext } from "@/lib/utils/sanitizePromptContext";
+import { videoPromptQualityEngine } from "@/lib/prompts/promptQualityEngine";
 
 export function buildKlingPromptsPrompt(
   project: Project,
@@ -121,6 +122,17 @@ Create one Kling prompt package per scene with:
 - generation risks
 - manual review checklist
 
+${videoPromptQualityEngine}
+
+KLING FINAL PROMPT OPTIMIZATION
+
+- Each kling_prompt must be a final copy-ready video prompt, not a planning note.
+- Structure each prompt as: subject identity, scene setting, opening state, primary action, camera movement, lighting/mood, ending state, continuity anchors, aspect ratio.
+- Keep the scene controllable for generation: one primary action, one camera movement, one location, no hard scene cuts.
+- Use keyframe references as the visual start/end guide and Reference Image Prompts as identity/style anchors when available.
+- If voiceover exists, align the visual beat to the narration without asking for lip-sync.
+- Negative prompts must be specific and include quality, continuity, anatomy, camera, text, logo, brand, and motion-stability blockers.
+
 OUTPUT RULES
 
 - Return valid JSON only.
@@ -131,6 +143,7 @@ OUTPUT RULES
 - source_script_title must match ${scriptGeneration.title}.
 - every scene must have kling_prompt and negative_prompt.
 - Use reference image prompts when available, but remain valid if they are missing.
+- every kling_prompt must be self-contained and directly usable in Kling or a similar image-to-video generator.
 
 JSON SCHEMA
 ${JSON.stringify(schemaExample, null, 2)}

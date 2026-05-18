@@ -1,0 +1,38 @@
+services:
+  db:
+    build:
+      context: ./docker/postgres
+    container_name: viral-forge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: viral_forge
+      POSTGRES_USER: viral_forge
+      POSTGRES_PASSWORD: viral_forge_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - viral_forge_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U viral_forge -d viral_forge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: viral-forge-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AI_PROVIDER: mock
+      DATABASE_URL: postgres://viral_forge:viral_forge_password@db:5432/viral_forge
+    ports:
+      - "3000:3000"
+
+volumes:
+  viral_forge_postgres_data:
