@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { type Project } from "@/lib/schemas/project";
 import {
+  getProductionReadiness,
   getProjectNextStep,
   getProjectTemplateLabel,
   statusLabels,
@@ -18,6 +19,7 @@ export function ProjectCard({ project }: { project: Project }) {
     (idea) => idea.id === project.selected_idea_id,
   );
   const nextStep = getProjectNextStep(project);
+  const readiness = getProductionReadiness(project);
 
   return (
     <Card className="h-full rounded-[1.75rem]">
@@ -47,6 +49,17 @@ export function ProjectCard({ project }: { project: Project }) {
           <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/80">Next Step</p>
           <p className="font-medium text-cyan-50">{nextStep.label}</p>
           <p className="text-slate-300">{nextStep.description}</p>
+        </div>
+        <div className="grid gap-2 rounded-2xl border border-white/10 bg-white/4 p-4">
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Readiness</p>
+          <p className="text-slate-100">
+            {readiness.score}/100 ({readiness.completedChecks}/{readiness.totalChecks} checks)
+          </p>
+          <p className="text-slate-300">
+            {readiness.blockers.length > 0
+              ? `${readiness.blockers.length} blocker(s) remaining`
+              : "No blockers for final export"}
+          </p>
         </div>
         <div className="grid gap-2 text-slate-400">
           <p>

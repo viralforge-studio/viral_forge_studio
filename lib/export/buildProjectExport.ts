@@ -1,4 +1,5 @@
 import { type Project } from "@/lib/schemas/project";
+import { getProductionReadiness } from "@/lib/workflow";
 
 function section(title: string, body: string) {
   return `## ${title}\n\n${body.trim() || "Not available."}\n`;
@@ -8,6 +9,105 @@ function codeBlock(value: unknown) {
   return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
 }
 
+function bulletList(items: string[]) {
+  if (items.length === 0) {
+    return "- Not available.";
+  }
+
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function buildReadinessSummary(project: Project) {
+  const readiness = getProductionReadiness(project);
+  const blockers =
+    readiness.blockers.length > 0
+      ? readiness.blockers.map((item) => `${item.label}: ${item.message}`)
+      : ["None"];
+  const warnings =
+    readiness.warnings.length > 0
+      ? readiness.warnings.map((item) => `${item.label}: ${item.message}`)
+      : ["None"];
+  const highlights = readiness.highlights.length > 0 ? readiness.highlights : ["None"];
+
+  return [
+    `- Readiness score: ${readiness.score}/100`,
+    `- Completion: ${readiness.completedChecks}/${readiness.totalChecks} core checks`,
+    `- Export finalization: ${readiness.canFinalizeExport ? "Eligible" : "Blocked"}`,
+    "- Blockers:",
+    ...blockers.map((item) => `  - ${item}`),
+    "- Warnings:",
+    ...warnings.map((item) => `  - ${item}`),
+    "- Highlights:",
+    ...highlights.map((item) => `  - ${item}`),
+  ].join("\n");
+}
+
+function buildReferencePromptPack(project: Project) {
+  if (!project.design_image_prompts) {
+    return "No Reference Image Prompts.";
+  }
+
+  return project.design_image_prompts.image_prompts
+    .map((prompt) =>
+      [
+        `### ${prompt.id} - ${prompt.title}`,
+        `- Type: ${prompt.type}`,
+        `- Purpose: ${prompt.purpose}`,
+        "",
+        "Prompt:",
+        prompt.prompt,
+        "",
+        "Negative Prompt:",
+        prompt.negative_prompt,
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+function buildKeyframePromptPack(project: Project) {
+  if (!project.keyframe_prompts) {
+    return "No Keyframe Prompts.";
+  }
+
+  return project.keyframe_prompts.keyframes
+    .map((scene) =>
+      [
+        `### Scene ${scene.scene_number} - ${scene.scene_role}`,
+        "",
+        "Opening Keyframe Prompt:",
+        scene.opening_keyframe_prompt,
+        "",
+        "Ending Keyframe Prompt:",
+        scene.ending_keyframe_prompt ?? "Not provided.",
+        "",
+        "Negative Prompt:",
+        scene.negative_prompt,
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
+function buildKlingPromptPack(project: Project) {
+  if (!project.kling_prompts) {
+    return "No Kling Prompts.";
+  }
+
+  return project.kling_prompts.prompts
+    .map((scene) =>
+      [
+        `### Scene ${scene.scene_number} - ${scene.scene_role}`,
+        `- Duration: ${scene.duration_sec}s`,
+        "",
+        "Kling Prompt:",
+        scene.kling_prompt,
+        "",
+        "Negative Prompt:",
+        scene.negative_prompt,
+      ].join("\n"),
+    )
+    .join("\n\n");
+}
+
 export function buildProjectExportMarkdown(project: Project) {
   const selectedIdea =
     project.idea_generation?.ideas.find((idea) => idea.id === project.selected_idea_id) ?? null;
@@ -15,6 +115,8 @@ export function buildProjectExportMarkdown(project: Project) {
   return `# ${project.project_name} Production Export
 
 Generated for ${project.channel_name}.
+
+${section("Production Readiness Summary", buildReadinessSummary(project))}
 
 ${section(
   "Project Brief",
@@ -66,18 +168,23 @@ ${section(
   project.test_scene_review ? codeBlock(project.test_scene_review) : "No test scene review.",
 )}
 
-${section(
-  "Export Notes",
-  project.export_notes ?? "No export notes.",
-)}
+${section("Reference Prompt Pack (Copy-Ready)", buildReferencePromptPack(project))}
+
+${section("Keyframe Prompt Pack (Copy-Ready)", buildKeyframePromptPack(project))}
+
+${section("Kling Prompt Pack (Copy-Ready)", buildKlingPromptPack(project))}
+
+${section("Export Notes", project.export_notes ?? "No export notes.")}
 
 ## Production Checklist
 
-- Generate or approve reusable reference images.
-- Generate Scene ${project.kling_prompts?.recommended_test_scene ?? 1} as the test scene first.
-- Compare the generated scene against the test scene review.
-- If approved, generate remaining scenes in order.
-- Keep subject identity, environment, lighting, and negative prompts consistent.
-- Export final vertical package for ${project.platform}.
+${bulletList([
+  "Generate or approve reusable reference images.",
+  `Generate Scene ${project.kling_prompts?.recommended_test_scene ?? 1} as the test scene first.`,
+  "Compare the generated scene against the test scene review.",
+  "If approved, generate remaining scenes in order.",
+  "Keep subject identity, environment, lighting, and negative prompts consistent.",
+  `Export final vertical package for ${project.platform}.`,
+])}
 `;
 }

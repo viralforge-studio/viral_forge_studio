@@ -39,6 +39,7 @@ import {
 import { formatDateTime } from "@/lib/utils/dates";
 import {
   getCurrentStageLabel,
+  getProductionReadiness,
   getProjectNextStep,
   getProjectTemplateLabel,
   hasMissingReferenceImagePromptsWarning,
@@ -178,6 +179,7 @@ export default async function ProjectWorkspacePage({
         )
       : null;
   const nextStep = getProjectNextStep(project);
+  const readiness = getProductionReadiness(project);
   const hasReferenceWarning = hasMissingReferenceImagePromptsWarning(project);
   const currentStageLabel = getCurrentStageLabel(project, activeTab);
   return (
@@ -220,6 +222,9 @@ export default async function ProjectWorkspacePage({
           <p className="text-xs uppercase tracking-[0.26em] text-cyan-100/70">Next Step</p>
           <p className="text-lg font-semibold text-white">{nextStep.label}</p>
           <p className="max-w-3xl text-sm leading-7 text-slate-300">{nextStep.description}</p>
+          <p className="text-sm text-cyan-100/90">
+            Readiness: {readiness.score}/100 ({readiness.completedChecks}/{readiness.totalChecks} checks)
+          </p>
           {hasReferenceWarning ? (
             <p className="max-w-3xl text-sm leading-7 text-amber-200">
               Warning: Later-stage prompts already exist without Reference Image Prompts.

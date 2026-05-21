@@ -13,6 +13,7 @@ import { buildSceneBoardPrompt } from "@/lib/prompts/buildSceneBoardPrompt";
 import {
   type NewProjectInput,
   NewProjectInputSchema,
+  type ProjectStatus,
   type Project,
   ProjectSchema,
 } from "@/lib/schemas/project";
@@ -33,6 +34,31 @@ import {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const PROJECTS_FILE = path.join(DATA_DIR, "projects.json");
+
+const SCRIPT_PROMPT_OR_LATER_STATUSES: ProjectStatus[] = [
+  "script_generated",
+  "voiceover_reviewed",
+  "subject_design_prompt_ready",
+  "subject_design_ready",
+  "design_image_prompts_ready",
+  "scene_board_ready",
+  "keyframe_prompts_ready",
+  "kling_prompts_ready",
+  "test_scene_review",
+  "ready_for_export",
+];
+
+function keepStatusIfAlreadyReached(
+  currentStatus: ProjectStatus,
+  preservedStatuses: ProjectStatus[],
+  fallbackStatus: ProjectStatus,
+) {
+  if (preservedStatuses.includes(currentStatus)) {
+    return currentStatus;
+  }
+
+  return fallbackStatus;
+}
 
 function clearScenePlanningStages(project: Project) {
   return {
@@ -420,6 +446,11 @@ export async function ensureScriptPrompt(projectId: string) {
     ...project,
     script_prompt: buildScriptGenerationPrompt(project, selectedIdea),
     script_prompt_updated_at: timestamp,
+    status: keepStatusIfAlreadyReached(
+      project.status,
+      SCRIPT_PROMPT_OR_LATER_STATUSES,
+      "script_prompt_ready",
+    ),
     updated_at: timestamp,
   };
 
@@ -446,7 +477,11 @@ export async function saveScriptPrompt(projectId: string, scriptPrompt: string) 
     ...projects[index],
     script_prompt: scriptPrompt,
     script_prompt_updated_at: timestamp,
-    status: projects[index].status === "script_generated" ? "script_generated" : "idea_selected",
+    status: keepStatusIfAlreadyReached(
+      projects[index].status,
+      SCRIPT_PROMPT_OR_LATER_STATUSES,
+      "script_prompt_ready",
+    ),
     updated_at: timestamp,
   };
 
@@ -474,7 +509,11 @@ export async function resetScriptPrompt(projectId: string) {
     ...project,
     script_prompt: buildScriptGenerationPrompt(project, selectedIdea),
     script_prompt_updated_at: timestamp,
-    status: project.status === "script_generated" ? "script_generated" : "idea_selected",
+    status: keepStatusIfAlreadyReached(
+      project.status,
+      SCRIPT_PROMPT_OR_LATER_STATUSES,
+      "script_prompt_ready",
+    ),
     updated_at: timestamp,
   };
 
@@ -1476,6 +1515,27 @@ export async function finalizeProjectExport(projectId: string, exportNotes: stri
     export_ready_at: timestamp,
     export_notes: exportNotes,
     status: "ready_for_export",
+    updated_at: timestamp,
+  };
+
+  projects[index] = ProjectSchema.parse(nextProject);
+  await writeProjects(projects);
+  return projects[index];
+}
+
+export async function saveExportNotes(projectId: string, exportNotes: string) {
+  const projects = await readProjects();
+  const index = projects.findIndex((project) => project.id === projectId);
+
+  if (index === -1) {
+    return null;
+  }
+
+  const project = projects[index];
+  const timestamp = new Date().toISOString();
+  const nextProject: Project = {
+    ...project,
+    export_notes: exportNotes,
     updated_at: timestamp,
   };
 

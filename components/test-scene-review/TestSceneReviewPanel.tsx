@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/common/CopyButton";
 import { type Project } from "@/lib/schemas/project";
+import { getProductionReadiness, getRevisionTargetTab } from "@/lib/workflow";
 
 const decisionOptions = [
   { value: "approved_for_full_production", label: "Approved for full production" },
@@ -28,12 +30,17 @@ function linesToList(value: string) {
     .filter(Boolean);
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 export function TestSceneReviewPanel({ project }: { project: Project }) {
+  const router = useRouter();
   const recommendedSceneNumber = project.kling_prompts?.recommended_test_scene ?? 1;
   const existing = project.test_scene_review;
   const [sceneNumber, setSceneNumber] = useState(existing?.scene_number ?? recommendedSceneNumber);
   const [score, setScore] = useState(existing?.score ?? 8);
-  const [decision, setDecision] = useState(
+  const [decision, setDecision] = useState<(typeof decisionOptions)[number]["value"]>(
     existing?.decision ?? "approved_for_full_production",
   );
   const [videoReference, setVideoReference] = useState(existing?.video_reference ?? "");
@@ -51,6 +58,24 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
     [project.kling_prompts, sceneNumber],
   );
 
+  const readinessPreview = useMemo(
+    () =>
+      getProductionReadiness({
+        ...project,
+        test_scene_review: {
+          scene_number: sceneNumber,
+          score: clamp(Math.round(score || 0), 1, 10),
+          decision,
+          video_reference: videoReference,
+          strengths: linesToList(strengths),
+          issues: linesToList(issues),
+          notes,
+          reviewed_at: new Date().toISOString(),
+        },
+      }),
+    [decision, issues, notes, project, sceneNumber, score, strengths, videoReference],
+  );
+
   if (!project.kling_prompts) {
     return (
       <Card>
@@ -66,30 +91,40 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
     setMessage(null);
     setError(null);
 
-    const response = await fetch(`/api/projects/${project.id}/test-scene-review`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        scene_number: sceneNumber,
-        score,
-        decision,
-        video_reference: videoReference,
-        strengths: linesToList(strengths),
-        issues: linesToList(issues),
-        notes,
-      }),
-    });
-    const data = await response.json();
+    try {
+      const response = await fetch(`/api/projects/${project.id}/test-scene-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scene_number: sceneNumber,
+          score: clamp(Math.round(score || 0), 1, 10),
+          decision,
+          video_reference: videoReference,
+          strengths: linesToList(strengths),
+          issues: linesToList(issues),
+          notes,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
 
-    if (!response.ok) {
-      setError(data.error ?? "Unable to save test scene review.");
+      if (!response.ok) {
+        setError(data?.error ?? "Unable to save test scene review.");
+        setIsSaving(false);
+        return;
+      }
+
+      setMessage("Test scene review saved.");
+      router.replace(`/projects/${project.id}?tab=test-scene-review`);
+      router.refresh();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Unable to save test scene review.",
+      );
+    } finally {
       setIsSaving(false);
-      return;
     }
-
-    setMessage("Test scene review saved.");
-    setIsSaving(false);
-    window.location.href = `/projects/${project.id}?tab=test-scene-review`;
   }
 
   return (
@@ -101,15 +136,44 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
               <Badge variant="accent">Test Scene Review</Badge>
               <CardTitle>Validate one scene before full production</CardTitle>
               <p className="text-sm leading-7 text-slate-300">
-                Score the recommended test render, capture issues, and decide whether to export the production package.
+                Score the recommended test render, capture issues, and decide whether to export the
+                production package.
               </p>
             </div>
             <Badge>Recommended scene {recommendedSceneNumber}</Badge>
           </div>
         </CardHeader>
         <CardContent className="grid gap-5">
-          {message ? <Alert className="border-emerald-400/20 bg-emerald-400/10 text-emerald-100">{message}</Alert> : null}
-          {error ? <Alert className="border-rose-400/20 bg-rose-400/10 text-rose-100">{error}</Alert> : null}
+          {message ? (
+            <Alert className="border-emerald-400/20 bg-emerald-400/10 text-emerald-100">
+              {message}
+            </Alert>
+          ) : null}
+          {error ? (
+            <Alert className="border-rose-400/20 bg-rose-400/10 text-rose-100">{error}</Alert>
+          ) : null}
+
+          <div className="grid gap-4 rounded-2xl border border-white/10 bg-white/3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-100">Readiness Preview</p>
+              <Badge variant={readinessPreview.canFinalizeExport ? "success" : "warning"}>
+                {readinessPreview.score}/100
+              </Badge>
+            </div>
+            <p className="text-sm text-slate-300">
+              {readinessPreview.completedChecks}/{readinessPreview.totalChecks} core checks complete.
+            </p>
+            {readinessPreview.blockers.length > 0 ? (
+              <p className="text-sm text-amber-100">
+                {readinessPreview.blockers.length} blocker(s) currently prevent final export.
+              </p>
+            ) : (
+              <p className="text-sm text-emerald-100">
+                No blockers detected. You can continue to export after saving this review.
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Scene Number">
               <select
@@ -136,7 +200,9 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
             <Field label="Decision">
               <select
                 value={decision}
-                onChange={(event) => setDecision(event.target.value as typeof decision)}
+                onChange={(event) =>
+                  setDecision(event.target.value as (typeof decisionOptions)[number]["value"])
+                }
                 className="h-11 rounded-xl border border-white/10 bg-slate-950/70 px-3 text-sm text-white outline-none focus-visible:border-cyan-300/50"
               >
                 {decisionOptions.map((option) => (
@@ -186,9 +252,17 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
             </Button>
             {decision === "approved_for_full_production" ? (
               <Link href={`/projects/${project.id}?tab=export`}>
-                <Button type="button" variant="secondary">Continue to Export</Button>
+                <Button type="button" variant="secondary">
+                  Continue to Export
+                </Button>
               </Link>
-            ) : null}
+            ) : (
+              <Link href={`/projects/${project.id}?tab=${getRevisionTargetTab(decision)}`}>
+                <Button type="button" variant="secondary">
+                  Go Fix Revision Stage
+                </Button>
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -200,7 +274,9 @@ export function TestSceneReviewPanel({ project }: { project: Project }) {
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm leading-7 text-slate-300">{scenePrompt.kling_prompt}</p>
-            <p className="text-sm leading-7 text-rose-100">Negative: {scenePrompt.negative_prompt}</p>
+            <p className="text-sm leading-7 text-rose-100">
+              Negative: {scenePrompt.negative_prompt}
+            </p>
             <div className="flex flex-wrap gap-3">
               <CopyButton value={scenePrompt.kling_prompt} label="Copy Kling Prompt" />
               <CopyButton value={scenePrompt.negative_prompt} label="Copy Negative Prompt" />

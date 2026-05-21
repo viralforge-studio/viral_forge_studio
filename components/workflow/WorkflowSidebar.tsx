@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, Lock } from "lucide-react";
 import { type Project } from "@/lib/schemas/project";
 import { cn } from "@/lib/utils/cn";
 import {
+  getProductionReadiness,
   getProjectNextStep,
   isWorkflowTabAvailable,
   isWorkflowTabComplete,
@@ -18,6 +19,7 @@ export function WorkflowSidebar({
   activeTab: string;
 }) {
   const nextStep = getProjectNextStep(project);
+  const readiness = getProductionReadiness(project);
 
   return (
     <aside className="rounded-3xl border border-white/10 bg-slate-950/55 p-4">
@@ -28,6 +30,23 @@ export function WorkflowSidebar({
           <p className="text-sm text-cyan-50">{nextStep.label}</p>
         </div>
         <p className="text-sm leading-7 text-slate-300">{nextStep.description}</p>
+      </div>
+
+      <div className="mb-5 grid gap-3 rounded-2xl border border-white/10 bg-white/4 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Readiness</p>
+          <p className="text-sm font-medium text-white">{readiness.score}/100</p>
+        </div>
+        <p className="text-xs leading-6 text-slate-300">
+          {readiness.completedChecks}/{readiness.totalChecks} core checks complete
+        </p>
+        {readiness.blockers.length > 0 ? (
+          <p className="text-xs leading-6 text-amber-200">
+            {readiness.blockers.length} blocker(s) still need action
+          </p>
+        ) : (
+          <p className="text-xs leading-6 text-emerald-200">No blockers detected</p>
+        )}
       </div>
 
       <nav className="grid gap-5">

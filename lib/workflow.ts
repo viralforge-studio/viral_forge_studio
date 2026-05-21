@@ -1,4 +1,5 @@
 import { type ProjectStatus, type Project } from "@/lib/schemas/project";
+import { type TestSceneReviewDecision } from "@/lib/schemas/test-scene-review";
 
 export const workflowTabs = [
   { key: "brief", label: "Brief", enabled: true, group: "Setup" },
@@ -89,6 +90,312 @@ export const statusLabels: Record<ProjectStatus, string> = {
   test_scene_review: "Test Scene Review",
   ready_for_export: "Ready for Export",
 };
+
+const revisionTargetTabByDecision: Record<TestSceneReviewDecision, WorkflowTabKey> = {
+  approved_for_full_production: "export",
+  revise_kling_prompt: "kling-prompts",
+  revise_keyframes: "keyframe-prompts",
+  revise_scene_board: "scene-board",
+  revise_subject_design: "subject-design",
+};
+
+const readinessChecks: Array<{
+  tab: WorkflowTabKey;
+  label: string;
+  points: number;
+  isComplete: (project: Project) => boolean;
+}> = [
+  {
+    tab: "selected-idea",
+    label: "Selected Idea",
+    points: 5,
+    isComplete: (project) => Boolean(project.selected_idea_id),
+  },
+  {
+    tab: "script-prompt",
+    label: "Script Prompt",
+    points: 5,
+    isComplete: (project) => Boolean(project.script_prompt),
+  },
+  {
+    tab: "script",
+    label: "Script",
+    points: 10,
+    isComplete: (project) => Boolean(project.script_generation),
+  },
+  {
+    tab: "voiceover",
+    label: "Voiceover",
+    points: 5,
+    isComplete: (project) => Boolean(project.voiceover_updated_at || project.edited_voiceover),
+  },
+  {
+    tab: "subject-design-prompt",
+    label: "Subject Design Prompt",
+    points: 5,
+    isComplete: (project) => Boolean(project.subject_design_prompt),
+  },
+  {
+    tab: "subject-design",
+    label: "Subject Design",
+    points: 15,
+    isComplete: (project) => Boolean(project.subject_design),
+  },
+  {
+    tab: "design-image-prompts",
+    label: "Reference Image Prompts",
+    points: 10,
+    isComplete: (project) => Boolean(project.design_image_prompts),
+  },
+  {
+    tab: "scene-board",
+    label: "Scene Board",
+    points: 10,
+    isComplete: (project) => Boolean(project.scene_board),
+  },
+  {
+    tab: "keyframe-prompts",
+    label: "Keyframe Prompts",
+    points: 10,
+    isComplete: (project) => Boolean(project.keyframe_prompts),
+  },
+  {
+    tab: "kling-prompts",
+    label: "Kling Prompts",
+    points: 10,
+    isComplete: (project) => Boolean(project.kling_prompts),
+  },
+  {
+    tab: "test-scene-review",
+    label: "Test Scene Review",
+    points: 10,
+    isComplete: (project) => Boolean(project.test_scene_review),
+  },
+];
+
+export type ProductionReadinessIssue = {
+  tab: WorkflowTabKey;
+  label: string;
+  message: string;
+};
+
+export type ProductionReadinessLevel =
+  | "building"
+  | "needs_revision"
+  | "ready";
+
+export type ProductionReadinessReport = {
+  score: number;
+  completedChecks: number;
+  totalChecks: number;
+  level: ProductionReadinessLevel;
+  canFinalizeExport: boolean;
+  blockers: ProductionReadinessIssue[];
+  warnings: ProductionReadinessIssue[];
+  highlights: string[];
+};
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function pushIfMissing(
+  project: Project,
+  collection: ProductionReadinessIssue[],
+  params: {
+    tab: WorkflowTabKey;
+    label: string;
+    message: string;
+    whenMissing: boolean;
+  },
+) {
+  if (params.whenMissing) {
+    collection.push({
+      tab: params.tab,
+      label: params.label,
+      message: params.message,
+    });
+  }
+}
+
+export function getRevisionTargetTab(
+  decision: TestSceneReviewDecision | null | undefined,
+): WorkflowTabKey {
+  if (!decision) {
+    return "test-scene-review";
+  }
+
+  return revisionTargetTabByDecision[decision];
+}
+
+export function getProductionReadiness(project: Project): ProductionReadinessReport {
+  const completedChecks = readinessChecks.filter((item) => item.isComplete(project)).length;
+  const totalChecks = readinessChecks.length;
+  const baseScore = readinessChecks.reduce((sum, item) => {
+    if (item.isComplete(project)) {
+      return sum + item.points;
+    }
+
+    return sum;
+  }, 0);
+
+  const blockers: ProductionReadinessIssue[] = [];
+  const warnings: ProductionReadinessIssue[] = [];
+  const highlights: string[] = [];
+
+  pushIfMissing(project, blockers, {
+    tab: "selected-idea",
+    label: "Selected Idea",
+    message: "Choose one idea before generating the production package.",
+    whenMissing: !project.selected_idea_id,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "script",
+    label: "Script",
+    message: "Generate or upload script JSON before final output.",
+    whenMissing: !project.script_generation,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "subject-design",
+    label: "Subject Design",
+    message: "Generate or upload Subject Design so identity stays consistent.",
+    whenMissing: !project.subject_design,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "scene-board",
+    label: "Scene Board",
+    message: "Create Scene Board so shot planning is defined per scene.",
+    whenMissing: !project.scene_board,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "keyframe-prompts",
+    label: "Keyframe Prompts",
+    message: "Create Keyframe Prompts before final Kling prompt execution.",
+    whenMissing: !project.keyframe_prompts,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "kling-prompts",
+    label: "Kling Prompts",
+    message: "Create Kling Prompts before running test-scene review or export.",
+    whenMissing: !project.kling_prompts,
+  });
+
+  pushIfMissing(project, blockers, {
+    tab: "test-scene-review",
+    label: "Test Scene Review",
+    message: "Save one test-scene review before marking the project ready for export.",
+    whenMissing: !project.test_scene_review,
+  });
+
+  if (
+    project.test_scene_review &&
+    project.test_scene_review.decision !== "approved_for_full_production"
+  ) {
+    blockers.push({
+      tab: getRevisionTargetTab(project.test_scene_review.decision),
+      label: "Revision Required",
+      message: `Test scene decision is "${project.test_scene_review.decision.replace(/_/g, " ")}". Resolve this stage first.`,
+    });
+  }
+
+  if (hasMissingReferenceImagePromptsWarning(project)) {
+    warnings.push({
+      tab: "design-image-prompts",
+      label: "Reference Image Prompts",
+      message:
+        "Later-stage prompts exist without Reference Image Prompts. Visual consistency may drift.",
+    });
+  }
+
+  if (project.test_scene_review && project.test_scene_review.score <= 7) {
+    warnings.push({
+      tab: "test-scene-review",
+      label: "Test Scene Score",
+      message:
+        "Test scene score is 7 or lower. Consider revising before scaling to all scenes.",
+    });
+  }
+
+  if (
+    project.test_scene_review &&
+    project.test_scene_review.issues.length > project.test_scene_review.strengths.length
+  ) {
+    warnings.push({
+      tab: getRevisionTargetTab(project.test_scene_review.decision),
+      label: "Quality Risk",
+      message:
+        "Reported issues exceed strengths. Resolve consistency issues before full production.",
+    });
+  }
+
+  if (project.design_image_prompts) {
+    highlights.push("Reference image anchor prompts are available for identity consistency.");
+  }
+
+  if (project.keyframe_prompts) {
+    highlights.push("Scene-by-scene keyframe anchors are ready for controlled motion planning.");
+  }
+
+  if (
+    project.test_scene_review?.decision === "approved_for_full_production" &&
+    project.test_scene_review.score >= 8
+  ) {
+    highlights.push(
+      `Test scene approved with a strong score (${project.test_scene_review.score}/10).`,
+    );
+  }
+
+  const canFinalizeExport = Boolean(
+    project.kling_prompts &&
+      project.test_scene_review &&
+      project.test_scene_review.decision === "approved_for_full_production",
+  );
+
+  let score = baseScore;
+  if (project.test_scene_review?.decision === "approved_for_full_production") {
+    score += 3;
+  }
+
+  if (project.test_scene_review && project.test_scene_review.score >= 8) {
+    score += 2;
+  }
+
+  if (project.test_scene_review && project.test_scene_review.score <= 5) {
+    score -= 4;
+  }
+
+  if (
+    project.test_scene_review &&
+    project.test_scene_review.issues.length > project.test_scene_review.strengths.length
+  ) {
+    score -= 2;
+  }
+
+  score = clamp(score, 0, 100);
+
+  const level: ProductionReadinessLevel = canFinalizeExport
+    ? "ready"
+    : project.test_scene_review &&
+        project.test_scene_review.decision !== "approved_for_full_production"
+      ? "needs_revision"
+      : "building";
+
+  return {
+    score,
+    completedChecks,
+    totalChecks,
+    level,
+    canFinalizeExport,
+    blockers,
+    warnings,
+    highlights,
+  };
+}
 
 export function isWorkflowTabAvailable(project: Project, tabKey: string) {
   switch (tabKey) {

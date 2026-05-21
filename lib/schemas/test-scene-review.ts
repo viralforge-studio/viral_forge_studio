@@ -34,5 +34,6 @@ export const FinalizeExportInputSchema = z.object({
 });
 
 export type TestSceneReview = z.infer<typeof TestSceneReviewSchema>;
+export type TestSceneReviewDecision = z.infer<typeof TestSceneReviewDecisionSchema>;
 export type SaveTestSceneReviewInput = z.infer<typeof SaveTestSceneReviewInputSchema>;
 export type FinalizeExportInput = z.infer<typeof FinalizeExportInputSchema>;
